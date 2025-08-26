@@ -1,4 +1,4 @@
-package com.example.university;
+package com.university.register;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
