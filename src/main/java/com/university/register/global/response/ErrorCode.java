@@ -14,6 +14,9 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "403", "금지된 요청입니다."),
 
     STUDENT_ID_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER4091", "이미 존재하는 학번입니다."),
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER4041", "존재하지 않는 회원입니다."),
+    INVALID_NAME(HttpStatus.BAD_REQUEST, "USER4002", "이름이 일치하지 않습니다."),
+
     COURSE_ALREADY_EXISTS(HttpStatus.CONFLICT, "COURSE4091", "이미 존재하는 과목명입니다.");
 
     private final HttpStatus httpStatus;
