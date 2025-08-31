@@ -3,6 +3,7 @@ package com.university.register.domain.course.service;
 import com.university.register.domain.course.dto.CourseAddRequestDto;
 import com.university.register.domain.course.dto.CourseAdminDto;
 import com.university.register.domain.course.dto.CourseDto;
+import com.university.register.domain.course.dto.CourseUpdateRequestDto;
 import com.university.register.domain.course.entity.Course;
 import com.university.register.domain.course.repository.CourseRepository;
 import com.university.register.global.exception.ApiException;
@@ -33,6 +34,11 @@ public class CourseService {
             throw new ApiException(ErrorCode.BAD_REQUEST);
         }
 
+        if(courseRepository.count() >= 6) {
+            log.info("과목 한도 초과: 현재 과목수 = {}", courseRepository.count());
+            throw new ApiException(ErrorCode.COURSE_LIMIT_EXCEEDED);
+        }
+
         Course course;
         if(request.getTime() != null){
             course = new Course(request.getName(), request.getRemain(), request.getBasket(), request.getTime());
@@ -40,6 +46,37 @@ public class CourseService {
             course = new Course(request.getName(), request.getRemain(), request.getBasket());
         }
         courseRepository.save(course);
+    }
+
+    @Transactional
+    public void updateCourse(Long courseId, CourseUpdateRequestDto dto) {
+
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ApiException(ErrorCode.COURSE_NOT_FOUND));
+
+        if(dto.getName() != null && !dto.getName().equals(course.getName())) {
+            if(courseRepository.existsByName(dto.getName())) {
+                throw new ApiException(ErrorCode.COURSE_ALREADY_EXISTS);
+            }
+            course.setName(dto.getName());
+        }
+
+        if(dto.getRemain() != null) {
+            course.setRemain(dto.getRemain());
+        }
+
+        if(dto.getBasket() != null) {
+            course.setBasket(dto.getBasket());
+        }
+
+        if(dto.getTime() != null) {
+            course.setTime(dto.getTime());
+        } else {
+            course.setTime(Course.calculateTime(course.getBasket(), course.getRemain()));
+        }
+
+        courseRepository.save(course);
+
     }
 
     @Transactional
@@ -53,7 +90,7 @@ public class CourseService {
     public List<CourseDto> getAllCourses() {
         List<Course> courses = courseRepository.findAll();
         return courses.stream()
-                .map(course -> new CourseDto(course.getId(), course.getName(), course.getRemain(), course.getBasket(), course.getStatus()))
+                .map(course -> new CourseDto(course.getId(), course.getName(), course.getRemain(), course.getBasket()))
                 .toList();
     }
 

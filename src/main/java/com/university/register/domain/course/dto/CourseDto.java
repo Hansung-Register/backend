@@ -12,13 +12,11 @@ public class CourseDto {
     private String name;
     private int remain;
     private int basket;
-    private Status status;
 
-    public CourseDto(Long id, String name, int remain, int basket, Status status) {
+    public CourseDto(Long id, String name, int remain, int basket) {
         this.id = id;
         this.name = name;
         this.remain = remain;
         this.basket = basket;
-        this.status = status;
     }
 }

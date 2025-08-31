@@ -5,6 +5,7 @@ import lombok.*;
 
 @Entity
 @Getter
+@Setter
 @RequiredArgsConstructor
 public class Course {
 
@@ -18,16 +19,12 @@ public class Course {
 
     private Integer basket;
 
-    @Setter
-    private Status status;
-
     private Long time;
 
     public Course (String name, Integer remain, Integer basket, Long time){
         this.name = name;
         this.remain = remain;
         this.basket = basket;
-        this.status = null;
         this.time = time;
     }
 
@@ -35,21 +32,18 @@ public class Course {
         this.name = name;
         this.remain = remain;
         this.basket = basket;
-        this.status = null;
-        setTime(basket, remain);
+        this.time = calculateTime(basket, remain);
     }
 
     // basket = 장바구니 인원, remain = 잔여좌석(총잔여인원)
-    public void setTime(int basket, int remain) {
+    public static long calculateTime(int basket, int remain) {
         // 이미 만석
         if (remain <= 0) {
-            this.time = 0L;
-            return;
+            return 0L;
         }
         // 장바구니가 좌석보다 적으면 오픈 직후엔 마감 안 됨
         if (basket < remain) {
-            this.time = Long.MAX_VALUE;
-            return;
+            return Long.MAX_VALUE;
         }
 
         // 간단 가정값(필요 시 숫자만 조정)
@@ -59,12 +53,11 @@ public class Course {
 
         double arrivalPerSec = (basket * alpha * gamma) / betaSec; // 초당 유효 신청량
         if (arrivalPerSec <= 0) {
-            this.time = Long.MAX_VALUE;
-            return;
+            return Long.MAX_VALUE;
         }
 
         long seconds = (long) Math.ceil(remain / arrivalPerSec);
-        this.time = Math.max(1L, seconds) + 1L;
+        return Math.max(1L, seconds) + 1L;
     }
 
 }
