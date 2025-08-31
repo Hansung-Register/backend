@@ -1,12 +1,14 @@
 package com.university.register.domain.apply.service;
 
-import com.university.register.domain.apply.dto.RecordResponseDto;
-import com.university.register.domain.apply.dto.SaveRequestDto;
-import com.university.register.domain.apply.dto.SaveResponseDto;
+import com.university.register.domain.apply.dto.*;
 import com.university.register.domain.apply.entity.Apply;
 import com.university.register.domain.apply.repository.ApplyRepository;
 import com.university.register.domain.course.entity.Course;
 import com.university.register.domain.course.repository.CourseRepository;
+import com.university.register.domain.rank.entity.Rank;
+import com.university.register.domain.rank.repository.RankRepository;
+import com.university.register.domain.registrationsession.entity.RegistrationSession;
+import com.university.register.domain.registrationsession.repository.RegistrationSessionRepository;
 import com.university.register.global.exception.ApiException;
 import com.university.register.global.response.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -15,11 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.List;
-
-import static com.university.register.domain.course.entity.Status.FAILURE;
-import static com.university.register.domain.course.entity.Status.SUCCESS;
 
 @Slf4j
 @Service
@@ -29,107 +26,78 @@ public class ApplyService {
 
     private final CourseRepository courseRepository;
     private final ApplyRepository applyRepository;
-
-    private LocalDateTime REGISTRATION_START;
-    private double record = 0;
+    private final RegistrationSessionRepository registrationSessionRepository;
+    private final RankRepository rankRepository;
 
     //수강신청하러 가기 버튼
-    public void LetsGo(){
-        REGISTRATION_START = LocalDateTime.now();
-        log.info("수강신청 시작 시간 {}", REGISTRATION_START);
+    @Transactional
+    public void LetsGo(int studentId) {
+        registrationSessionRepository.save(
+                RegistrationSession.builder()
+                .studentId(studentId)
+                .startTime(LocalDateTime.now())
+                .build()
+        );
+        log.info("학생아이디 {} 수강신청 시작 시간 {}", studentId, LocalDateTime.now());
     }
 
-    //수강 신청
     @Transactional
-    public Boolean registerCourse(Long courseId) {
-        if (REGISTRATION_START == null || LocalDateTime.now().isBefore(REGISTRATION_START)) {
-            log.info("수강신청 시작 전 or 시작 시간이 null");
-            throw new ApiException(ErrorCode.FORBIDDEN);
-        }
+    public RegisterResponseDto registerAndMaybeFinalize(Long courseId, Integer studentId, String name) {
+        // 1) 수강신청 시도
+        RegistrationSession session = registrationSessionRepository
+                .findTopByStudentIdOrderByStartTimeDesc(studentId)
+                .orElseThrow(() -> new ApiException(ErrorCode.FORBIDDEN));
 
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST));
 
-        boolean isRegistered = false;
-
         double time = course.getTime();
-        if (time >= Long.MAX_VALUE) {
-            // 마감 없음: 항상 성공 처리
-            course.setStatus(SUCCESS);
-            log.info("과목 {} 수강신청 성공 (마감 없음, 시도: {})", course.getName(), LocalDateTime.now());
-        } else {
-            long seconds = (long) time;
-            long nanos = (long) ((time - seconds) * 1_000_000_000);
-            LocalDateTime deadline = REGISTRATION_START.plusSeconds(seconds).plusNanos(nanos);
-            LocalDateTime now = LocalDateTime.now();
-            if (now.isAfter(deadline)) {
-                course.setStatus(FAILURE);
-                log.info("과목 {} 수강신청 실패 (마감: {}, 시도: {})", course.getName(), deadline, now);
-            } else {
-                course.setStatus(SUCCESS);
-                log.info("과목 {} 수강신청 성공 (마감: {}, 시도: {})", course.getName(), deadline, now);
-                isRegistered = true;
-            }
-        }
-        courseRepository.save(course);
+        LocalDateTime deadline = session.getStartTime().plusNanos((long) (time * 1_000_000_000));
+        boolean isRegistered = LocalDateTime.now().isBefore(deadline);
+        log.info("학생아이디 {} 수강신청 과목 {}, 시도 시간 {}, 마감 시간 {}, 성공 여부 {}", studentId, courseId, LocalDateTime.now(), deadline, isRegistered);
 
-        return isRegistered;
-    }
+        applyRepository.save(Apply.builder()
+                .studentId(studentId)
+                .courseId(courseId)
+                .isSuccess(isRegistered)
+                .appliedAt(LocalDateTime.now())
+                .build());
 
-    //수강신청 현황 => 모든 과목이 수강신청 버튼이 눌렸는지 체크
-    @Transactional
-    public Boolean checkAllCoursesTried() {
-        Boolean result = courseRepository.countByStatus(SUCCESS) + courseRepository.countByStatus(FAILURE)
-                == courseRepository.count();
+        // 2) 전체 시도 여부 체크
+        int totalCourses = (int) courseRepository.count();
+        int triedCourses = applyRepository.countDistinctCourseIdByStudentId(studentId);
+        boolean isAllTried = (triedCourses == totalCourses);
+        log.info("학생아이디 {} 시도 과목 수 {} 전체 과목 수 {} 모두 시도 여부 {}", studentId, triedCourses, totalCourses, isAllTried);
 
-        if(result) {
-            log.info("모든 과목 수강신청 완료");
-            record = java.time.Duration.between(REGISTRATION_START, LocalDateTime.now()).toNanos() / 1_000_000_000.0;
-            record = Math.round(record * 1000) / 1000.0; // 소수점 3째자리까지 반올림
-            REGISTRATION_START = null; // Reset the registration start time
-        }
-        return result;
-    }
+        // 3) 모두 시도했다면 최종 집계 + 저장
+        if (isAllTried) {
+            log.info("학생아이디 {} 모든 과목 수강신청 시도 완료, 최종 집계 시작", studentId);
+            int successCount = applyRepository.countByStudentIdAndIsSuccessTrue(studentId);
 
-    //전체 결과 조회
-    public List<SaveResponseDto> getAllRank() {
-        return applyRepository.findAll().stream()
-                .sorted(Comparator.comparingInt(apply -> applyRepository.findRankByCountAndRecord(apply.getCount(), apply.getRecord())))
-                .map(apply -> new SaveResponseDto(apply.getCount(), apply.getRecord(),
-                        applyRepository.findRankByCountAndRecord(apply.getCount(), apply.getRecord()), apply.getStudentId(), apply.getName()))
-                .toList();
-    }
+            LocalDateTime start = session.getStartTime();
+            LocalDateTime end = applyRepository.findLastAppliedAtByStudentId(studentId).orElse(start);
+            double record = Math.round((java.time.Duration.between(start, end).toNanos() / 1_000_000_000.0) * 1000) / 1000.0;
 
-    //개인 결과 조회
-    public RecordResponseDto getMyRecord() {
-        return new RecordResponseDto(record, courseRepository.countByStatus(SUCCESS));
-    }
+            rankRepository.save(Rank.builder()
+                    .studentId(studentId)
+                    .name(name)
+                    .count(successCount)
+                    .record(record)
+                    .build());
 
-    //수강신청 결과 저장
-    @Transactional
-    public SaveResponseDto save(SaveRequestDto dto) {
-        if(applyRepository.existsByStudentId(dto.getStudentId())) {
-            throw new ApiException(ErrorCode.STUDENT_ID_ALREADY_EXISTS);
+            applyRepository.deleteByStudentId(studentId);
         }
 
-        int count = courseRepository.countByStatus(SUCCESS);
-        int rank = applyRepository.findRankByCountAndRecord(count, record);
-        applyRepository.save(dto.toEntity(count, record, dto.getStudentId(), dto.getName()));
-        SaveResponseDto saveResponseDto = new SaveResponseDto(count, record, rank, dto.getStudentId(), dto.getName());
-
-        List<Course> courses = courseRepository.findAll();
-        courses.forEach(course -> course.setStatus(null));
-        courseRepository.saveAll(courses);
-
-        return saveResponseDto;
+        return new RegisterResponseDto(courseId, isRegistered, isAllTried);
     }
 
-    //수강신청 상태 초기화
-    @Transactional
-    public void resetRegisteredStatus() {
-        List<Course> courses = courseRepository.findAll();
-        courses.forEach(course -> course.setStatus(null));
-        courseRepository.saveAll(courses);
-        log.info("수강신청 상태 초기화 완료");
+    public LoginResponseDto login(LoginRequestDto dto) {
+        log.info("학생아이디 {} 로그인 처리", dto.getStudentId());
+        return new LoginResponseDto(dto.getStudentId(), dto.getName());
+    }
+
+
+    public void logout(int studentId) {
+        log.info("학생아이디 {} 로그아웃 처리", studentId);
     }
 }

@@ -4,6 +4,8 @@ import com.university.register.domain.course.entity.Status;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Entity
 @Builder
@@ -19,9 +21,9 @@ public class Apply{
     private Integer studentId;
     private String name;
 
-    //성공한 과목의 수
-    private Integer count;
+    private Long courseId;
 
-    //기록
-    private double record;
+    boolean isSuccess;
+
+    LocalDateTime appliedAt;
 }
