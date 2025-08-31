@@ -4,6 +4,8 @@ import com.university.register.domain.course.entity.Course;
 import com.university.register.domain.course.repository.CourseRepository;
 import com.university.register.domain.apply.entity.Apply;
 import com.university.register.domain.apply.repository.ApplyRepository;
+import com.university.register.domain.rank.entity.Rank;
+import com.university.register.domain.rank.repository.RankRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -21,6 +23,7 @@ public class DataInitialize implements CommandLineRunner {
 
     private final CourseRepository courseRepository;
     private final ApplyRepository applyRepository;
+    private final RankRepository rankRepository;
 
     @Override
     @Transactional
@@ -52,14 +55,14 @@ public class DataInitialize implements CommandLineRunner {
     private void seedApplies() {
         Integer studentId = 2091083;
         String name = "이한준";
-        if (!applyRepository.existsByStudentId(studentId)) {
-            Apply apply = Apply.builder()
+        if (!rankRepository.existsByStudentId(studentId)) {
+            Rank rank = Rank.builder()
                     .studentId(studentId)
                     .name(name)
                     .count(6)
                     .record(4.7)
                     .build();
-            applyRepository.save(apply);
+            rankRepository.save(rank);
             log.info("[DataInit] Apply inserted: {} ({})", name, studentId);
         } else {
             log.info("[DataInit] Apply already exists: {} ({})", name, studentId);
