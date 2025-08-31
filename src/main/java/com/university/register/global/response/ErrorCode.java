@@ -18,7 +18,10 @@ public enum ErrorCode {
     INVALID_NAME(HttpStatus.BAD_REQUEST, "USER4002", "이름이 일치하지 않습니다."),
 
     COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE4041", "존재하지 않는 과목입니다."),
-    COURSE_ALREADY_EXISTS(HttpStatus.CONFLICT, "COURSE4091", "이미 존재하는 과목명입니다.");
+    COURSE_ALREADY_EXISTS(HttpStatus.CONFLICT, "COURSE4091", "이미 존재하는 과목명입니다."),
+    COURSE_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "COURSE4002", "과목은 최대 6개까지 등록할 수 있습니다."),
+
+    RANK_NOT_FOUND(HttpStatus.NOT_FOUND, "RANK4041", "기록을 불러올 수 없습니다."),;
 
     private final HttpStatus httpStatus;
     private final String code;
