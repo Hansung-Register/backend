@@ -18,10 +18,8 @@ public class SaveRequestDto {
     @NotBlank(message = "이름은 필수입니다.")
     private String name;
 
-    public Apply toEntity(int count, double record, int studentId, String name) {
+    public Apply toEntity(int studentId, String name) {
         return Apply.builder()
-                .count(count)
-                .record(record)
                 .studentId(studentId)
                 .name(name)
                 .build();
